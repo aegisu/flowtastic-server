@@ -1,0 +1,1413 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flowtastic</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Redaction+35:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+     <style>
+        :root {
+            --btn-bg: #0a0c0e;
+            --btn-hover-bg: #222222;
+            --panel-bg: #080a0c;
+            --hud-font: 'Roboto Condensed', -apple-system, BlinkMacSystemFont, sans-serif;
+        }
+
+        body {
+            font-family: var(--hud-font);
+            background-color: #050709;
+            color: #ffffff;
+            overflow: hidden;
+            user-select: none;
+            -webkit-user-select: none;
+            letter-spacing: 0.5px;
+        }
+
+        /* Tactical Background Canvas/Backdrop */
+        .game-backdrop {
+            position: absolute;
+            inset: 0;
+            background-size: cover;
+            background-position: center;
+            transition: background-color 0.1s ease;
+            z-index: 0;
+        }
+
+        /* Subtle grid overlay */
+        .game-grid-overlay {
+            position: absolute;
+            inset: 0;
+            background-size: 40px 40px;
+            pointer-events: none;
+        }
+
+        /* Minimal Rectangular Radial Command Buttons */
+        .hud-cmd-btn {
+            position: absolute;
+            transform: translate(-50%, -50%);
+            width: 148px;
+            height: 34px;
+            padding: 0 8px;
+            background-color: var(--btn-bg);
+            border: 1px solid var(--btn-border);
+            border-radius: 1px;
+            color: #ffffff;
+            font-family: var(--hud-font);
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: background-color 0.01s ease, border-color 0.01s ease;
+        }
+
+        .hud-cmd-btn:hover, .hud-cmd-btn:focus {
+            background-color: var(--btn-hover-bg);
+            border-color: #ffffff;
+            outline: none;
+        }
+
+        .hud-cmd-btn:active {
+            background-color: #333333;
+        }
+
+        /* Multiplayer: currently selected participant / disabled placeholder */
+        .hud-cmd-btn.is-selected {
+            border-color: #ffffff;
+            background-color: #222222;
+        }
+        .hud-cmd-btn.is-disabled {
+            opacity: 0.4;
+            cursor: default;
+        }
+        .hud-cmd-btn.is-disabled:hover, .hud-cmd-btn.is-disabled:focus {
+            background-color: var(--btn-bg);
+            border-color: var(--btn-border);
+        }
+
+        /* Icon Container Above Radial Buttons */
+        .hud-btn-wrapper {
+            position: absolute;
+            transform: translate(-50%, -50%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            pointer-events: auto;
+        }
+
+        .hud-btn-wrapper .hud-cmd-btn {
+            position: relative;
+            transform: none;
+            top: auto;
+            left: auto;
+        }
+
+        .hud-icon {
+            width: 16px;
+            height: 16px;
+            fill: none;
+            stroke: #ffffff;
+            stroke-width: 2;
+            stroke-linecap: square;
+            stroke-linejoin: miter;
+            margin-bottom: 4px;
+            opacity: 0.9;
+        }
+
+        /* Minimal HUD Panels */
+        .hud-panel {
+            background-color: var(--panel-bg);
+        }
+
+        /* Center Crosshair */
+        .center-crosshair {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+            z-index: 5;
+        }
+
+        /* Scrollbar styling */
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-track { background: #000000; }
+        ::-webkit-scrollbar-thumb { background: #333333; }
+
+        /* ---------- Multiplayer UI ---------- */
+        .hud-input {
+            width: 100%;
+            background: #000000;
+            border-radius: 1px;
+            color: #fff;
+            padding: 7px 9px;
+            font-family: var(--hud-font);
+            font-size: 13px;
+            letter-spacing: 0.5px;
+            outline: none;
+            user-select: text;
+            -webkit-user-select: text;
+        }
+        .hud-input:focus { border-color: #ffffff; }
+        .hud-input::placeholder { color: #666666; }
+
+        .hud-btn {
+            padding: 6px 8px;
+            background: #111111;
+            border-radius: 1px;
+            color: #ffffff;
+            font-family: var(--hud-font);
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            cursor: pointer;
+            transition: background-color 0.05s ease, border-color 0.05s ease;
+        }
+        .hud-btn:hover { background: #222222; border-color: #ffffff; color: #fff; }
+        .hud-btn:disabled { opacity: 0.4; cursor: default; }
+        .hud-btn.primary { background: #ffffff; border-color: #ffffff; color: #000000; }
+        .hud-btn.primary:hover { background: #cccccc; border-color: #cccccc; }
+        .hud-btn.danger { background: #111111; border-color: #666666; color: #ffffff; }
+        .hud-btn.danger:hover { background: #ffffff; color: #000000; border-color: #ffffff; }
+
+        .user-row {
+            display: flex;
+            flex-direction: column;
+            width: 100%;
+            padding: 5px 7px;
+            background: #0a0c0e;
+            border: 1px solid #222222;
+            text-align: left;
+            color: #fff;
+            font-family: var(--hud-font);
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            cursor: pointer;
+        }
+        .user-row:hover { background: #1a1a1a; border-color: #444444; }
+        .user-row.is-target { border-color: #ffffff; background: #222222; }
+        .user-row.is-me { cursor: default; opacity: 0.7; }
+        .user-row.is-me:hover { background: #0a0c0e; border-color: #222222; }
+        .user-row.is-me.is-targeted { border-color: #888888; }
+        .user-row .sub { font-size: 9px; font-weight: 400; color: #aaaaaa; letter-spacing: 0.06em; }
+        .user-row.flash { animation: rowPulse 0.9s ease-out; }
+        @keyframes rowPulse {
+            0% { background: #ffffff; color: #000000; }
+            100% { background: #0a0c0e; color: #ffffff; }
+        }
+        #room-panel.is-stale #user-list { opacity: 0.45; pointer-events: none; }
+
+        /* Incoming interaction flash */
+        #hit-flash { position: fixed; inset: 0; pointer-events: none; z-index: 60; opacity: 0; }
+        #hit-flash.hit-tap { animation: hitPulse 0.35s ease-out; }
+        #hit-flash.hit-squeeze { animation: hitPulse 0.75s ease-out; }
+        #hit-flash.hit-hard { animation: hitPulseHard 1.2s ease-out; }
+        @keyframes hitPulse {
+            0% { opacity: 0; background-color: rgba(255, 255, 255, 0); }
+            20% { opacity: 1; background-color: rgba(255, 255, 255, 0.15); }
+            100% { opacity: 0; background-color: rgba(255, 255, 255, 0); }
+        }
+        @keyframes hitPulseHard {
+            0% { opacity: 0; background-color: rgba(255, 255, 255, 0); }
+            15% { opacity: 1; background-color: rgba(255, 255, 255, 0.3); }
+            100% { opacity: 0; background-color: rgba(255, 255, 255, 0); }
+        }
+
+        /* ---------- Desktop overlay mode (Electron) ---------- */
+        .overlay-only { display: none; }
+        body.overlay-mode { background: transparent !important; }
+        body.overlay-mode #game-backdrop,
+        body.overlay-mode .center-crosshair { display: none; }
+        body.overlay-mode .overlay-only { display: block; }
+        body.overlay-mode.hud-collapsed #room-wrap,
+        body.overlay-mode.hud-collapsed #bottom-row,
+        body.overlay-mode.hud-collapsed #radial-overlay,
+        body.overlay-mode.hud-collapsed #join-modal { display: none !important; }
+    </style>
+</head>
+<body class="w-screen h-screen relative overflow-hidden bg-slate-950">
+
+    <!-- 1. SIMULATED GAME ENVIRONMENT BACKDROP -->
+    <div id="game-backdrop" class="game-backdrop" style="background-color: #0d1117;">
+        <div class="game-grid-overlay"></div>
+    </div>
+
+    <!-- Incoming interaction flash -->
+    <div id="hit-flash"></div>
+
+    <!-- 3. MAIN HUD LAYER CONTAINER (F4 Toggleable) -->
+    <div id="hud-root" class="relative z-10 w-full h-full flex flex-col justify-between pointer-events-none p-4">
+
+        <!-- TOP-LEFT ROOM PANEL (multiplayer) -->
+        <div id="room-wrap" class="self-start pointer-events-none">
+            <div id="room-panel" class="hud-panel p-3 w-72 pointer-events-auto text-xs space-y-2">
+                <div class="flex justify-between items-center pb-1.5">
+                    <span class="font-bold text-white tracking-wider uppercase text-[11px]">TEAM ROOM</span>
+                    <span class="flex items-center gap-1.5 text-[9px] uppercase tracking-wider text-slate-400">
+                        <span id="conn-text">NOT IN ROOM</span>
+                    </span>
+                </div>
+
+                <div id="room-info" class="hidden">
+                    <div class="space-y-1">
+                        <div class="flex justify-between gap-2"><span class="text-slate-400 text-[10px] tracking-wider">ROOM</span><span id="room-name" class="font-bold truncate max-w-[170px] uppercase"></span></div>
+                        <div class="flex justify-between gap-2"><span class="text-slate-400 text-[10px] tracking-wider">CALLSIGN</span><span id="my-name" class="font-bold truncate max-w-[170px] uppercase"></span></div>
+                    </div>
+                </div>
+
+                <div id="rename-row" class="hidden">
+                    <div class="flex gap-1.5">
+                        <input id="rename-input" class="hud-input" maxlength="20" placeholder="NEW DISPLAY NAME" autocomplete="off" spellcheck="false">
+                        <button id="btn-rename-ok" class="hud-btn primary">OK</button>
+                    </div>
+                </div>
+
+                <div id="roster-block" class="hidden">
+                    <div class="flex justify-between text-[10px] text-slate-400 tracking-wider mb-1">
+                        <span>OPERATORS — CLICK TO SELECT</span><span id="user-count">0</span>
+                    </div>
+                    <div id="user-list" class="space-y-1 max-h-52 overflow-y-auto"></div>
+                </div>
+
+                <div id="quick-actions" class="hidden">
+                    <div class="text-[10px] text-slate-400 tracking-wider mb-1">TARGET: <span id="target-name" class="text-white font-bold uppercase"></span></div>
+                    <div class="grid grid-cols-3 gap-1">
+                        <button class="hud-btn" data-action="SQUEEZE">SQUEEZE</button>
+                        <button class="hud-btn" data-action="HARD SQUEEZE">HARD SQ.</button>
+                        <button class="hud-btn" data-action="TAP">TAP</button>
+                    </div>
+                </div>
+
+                <div id="room-buttons" class="hidden">
+                    <div class="grid grid-cols-3 gap-1.5">
+                        <button id="btn-copy-link" class="hud-btn">COPY LINK</button>
+                        <button id="btn-rename" class="hud-btn">RENAME</button>
+                        <button id="btn-leave" class="hud-btn danger">LEAVE</button>
+                    </div>
+                </div>
+
+                <div id="join-open-block">
+                    <button id="btn-open-join" class="hud-btn primary w-full">JOIN A ROOM</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- TOP NOTIFICATION BANNER -->
+        <div id="notification-banner" class="fixed top-6 left-1/2 -translate-x-1/2 pointer-events-auto z-40 transition-all duration-200 opacity-0 -translate-y-4">
+            <div class="hud-panel px-6 py-2.5 flex items-center gap-3 min-w-[320px]">
+                <div class="flex flex-col text-left">
+                    <span id="banner-tag" class="text-[10px] tracking-wider text-slate-400 font-bold uppercase">SIGNAL BROADCAST</span>
+                    <span id="banner-msg" class="text-xs font-bold text-white tracking-wide uppercase">NONE</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- CENTERED RADIAL MENU & STATUS INDICATOR -->
+        <div id="radial-overlay" class="absolute inset-0 flex items-center justify-center pointer-events-none opacity-0 transition-opacity duration-150 z-30">
+            
+            <!-- CENTER STATUS INDICATOR -->
+            <button id="center-status-btn" class="pointer-events-auto z-40 w-36 h-16 hud-panel flex flex-col items-center justify-center text-center p-2 focus:outline-none hover:bg-slate-900/90 transition-colors">
+                <span id="center-top-text" class="text-[10px] tracking-widest text-slate-400 font-bold uppercase">ECHO SIGNAL</span>
+                <span id="center-bottom-text" class="text-xs font-bold tracking-wider text-white uppercase truncate max-w-full">NONE</span>
+                <span id="center-sub-hint" class="text-[9px] text-slate-500 uppercase mt-0.5">[PRESS ` TO CLOSE]</span>
+            </button>
+
+            <!-- DYNAMIC RADIAL BUTTONS LAYER -->
+            <div id="radial-nodes-container" class="absolute inset-0 pointer-events-none"></div>
+        </div>
+
+        <!-- BOTTOM CONTROLS & ACTIVITY LOG -->
+        <div id="bottom-row" class="w-full flex justify-between items-end gap-4 pointer-events-none z-20">
+            
+            <!-- Bottom-Left Tactical Control Panel -->
+            <div class="hud-panel p-3.5 w-80 pointer-events-auto text-xs space-y-2.5">
+                <div class="flex justify-between items-center pb-1.5">
+                    <span class="font-bold text-white tracking-wider uppercase text-[11px]">PROTOTYPE</span>
+                </div>
+
+                <div class="grid grid-cols-2 gap-1.5">
+                    <button id="btn-toggle-radial" class="px-2 py-1.5 bg-white/5 hover:bg-blue-600/80 text-slate-200 hover:text-white /10 rounded-sm font-bold text-[10px] tracking-wider uppercase transition-colors text-left flex justify-between items-center">
+                        <span>RADIAL MENU</span>
+                        <span class="text-slate-400 text-[9px] bg-black/40 px-1">` ~</span>
+                    </button>
+                    <button id="btn-test-signal" class="px-2 py-1.5 bg-white/5 hover:bg-blue-600/80 text-slate-200 hover:text-white /10 rounded-sm font-bold text-[10px] tracking-wider uppercase transition-colors text-center">
+                        TEST SIGNAL
+                    </button>
+                    <button id="btn-toggle-audio" class="px-2 py-1.5 bg-white/5 hover:bg-blue-600/80 text-slate-200 hover:text-white /10 rounded-sm font-bold text-[10px] tracking-wider uppercase transition-colors text-left flex justify-between items-center">
+                        <span>AUDIO</span>
+                        <span id="audio-status-tag" class="text-blue-400 font-bold">ON</span>
+                    </button>
+                </div>
+
+                <button id="btn-quit-overlay" class="overlay-only hud-btn danger w-full" type="button">QUIT OVERLAY (CTRL+SHIFT+Q)</button>
+
+                <!-- Shortcuts Instructions -->
+                <div class="text-[10px] text-slate-400 space-y-0.5 pt-1.5">
+                    <div class="flex justify-between"><span>TOGGLE RADIAL:</span><span class="text-slate-200 font-bold">Tilde (` ~)</span></div>
+                    <div class="flex justify-between"><span>STEALTH HUD:</span><span class="text-slate-200 font-bold">F4 (Double-Press)</span></div>
+                    <div class="flex justify-between"><span>BACK / CANCEL:</span><span class="text-slate-200 font-bold">ESC Key / Center Click</span></div>
+                </div>
+            </div>
+
+            <!-- Bottom-Right Comms Log -->
+            <div class="hud-panel p-3 w-80 h-36 pointer-events-auto flex flex-col justify-between">
+                <div class="flex justify-between items-center pb-1 mb-1">
+                    <span class="text-[10px] font-bold text-slate-300 uppercase tracking-wider">SIGNAL LOG</span>
+                    <button id="btn-clear-log" class="text-[9px] text-slate-500 hover:text-white uppercase">CLEAR</button>
+                </div>
+                <div id="comms-log-box" class="flex-grow overflow-y-auto space-y-1 text-[10px] text-slate-300 pr-1">
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- 3b. JOIN MODAL (display name + room) -->
+    <div id="join-modal" class="fixed inset-0 z-50 items-center justify-center" style="display:none; background: rgba(0,0,0,0.6);">
+        <div class="hud-panel p-5 w-[380px] max-w-[92vw] space-y-3 border-t-2 border-t-blue-500">
+            <div class="flex justify-between items-center pb-2">
+                <span class="font-bold text-white tracking-wider uppercase text-[12px]">TEAM ROOM</span>
+                <span class="w-1.5 h-1.5 bg-blue-500 rounded-full"></span>
+            </div>
+            <div class="space-y-1">
+                <label for="join-name" class="text-[10px] tracking-wider text-slate-400 font-bold uppercase">DISPLAY NAME</label>
+                <input id="join-name" class="hud-input" maxlength="20" placeholder="e.g. ALPHA" autocomplete="off" spellcheck="false">
+            </div>
+            <div class="space-y-1">
+                <label for="join-room" class="text-[10px] tracking-wider text-slate-400 font-bold uppercase">ROOM ID</label>
+                <div class="flex gap-1.5">
+                    <input id="join-room" class="hud-input uppercase" maxlength="32" placeholder="ENTER OR CREATE" autocomplete="off" spellcheck="false">
+                    <button id="btn-new-room" class="hud-btn whitespace-nowrap" type="button">NEW ROOM</button>
+                </div>
+                <div class="text-[9px] text-slate-500 uppercase">Enter an existing room, or create a new one and share the ID.</div>
+            </div>
+            <div id="join-error" class="text-[10px] font-bold text-red-400 uppercase min-h-[14px]"></div>
+            <div class="grid grid-cols-3 gap-1.5">
+                <button id="btn-join" class="hud-btn primary col-span-2 py-2" type="button">JOIN ROOM</button>
+                <button id="btn-skip-join" class="hud-btn py-2" type="button">OFFLINE</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 4. APP SCRIPT & MENU LOGIC -->
+    <script>
+        /**
+         * Offline Web Audio Synthesizer
+         */
+        class TacticalAudioEngine {
+            constructor() {
+                this.ctx = null;
+                this.enabled = true;
+            }
+
+            init() {
+                if (!this.ctx) {
+                    const AudioContext = window.AudioContext || window.webkitAudioContext;
+                    if (AudioContext) this.ctx = new AudioContext();
+                }
+                if (this.ctx && this.ctx.state === 'suspended') {
+                    this.ctx.resume();
+                }
+            }
+
+            playTone(freq = 800, duration = 0.03, type = 'sine', gainVal = 0.03) {
+                if (!this.enabled) return;
+                this.init();
+                if (!this.ctx) return;
+                try {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = type;
+                    osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+                    gain.gain.setValueAtTime(gainVal, this.ctx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.0001, this.ctx.currentTime + duration);
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start();
+                    osc.stop(this.ctx.currentTime + duration);
+                } catch (e) {}
+            }
+
+            hover() { this.playTone(1000, 0.02, 'sine', 0.015); }
+            select() { this.playTone(1400, 0.04, 'triangle', 0.04); }
+            back() { this.playTone(600, 0.04, 'sine', 0.03); }
+            // multiplayer feedback
+            ack() { this.playTone(1500, 0.05, 'triangle', 0.04); setTimeout(() => this.playTone(2000, 0.06, 'triangle', 0.04), 60); }
+            tap() { this.playTone(900, 0.04, 'square', 0.05); }
+            squeeze() { this.playTone(220, 0.14, 'sawtooth', 0.05); setTimeout(() => this.playTone(180, 0.18, 'sawtooth', 0.05), 100); }
+            hardSqueeze() { this.playTone(140, 0.35, 'sawtooth', 0.07); setTimeout(() => this.playTone(110, 0.35, 'sawtooth', 0.07), 160); }
+            error() { this.playTone(250, 0.12, 'square', 0.04); }
+        }
+
+        const audio = new TacticalAudioEngine();
+
+        /**
+         * Minimal Monochromatic SVG Icon Set
+         */
+        const SVG_ICONS = {
+            patrol: `<svg class="hud-icon" viewBox="0 0 24 24"><path d="M12 2L4 6v6c0 5.55 3.84 10.74 8 12 4.16-1.26 8-6.45 8-12V6l-8-4z"/></svg>`,
+            tactile: `<svg class="hud-icon" viewBox="0 0 24 24"><path d="M9 11.25V5.5a1.5 1.5 0 0 1 3 0v5.75M12 11.25V4.5a1.5 1.5 0 0 1 3 0v6.75M15 11.25V6.5a1.5 1.5 0 0 1 3 0v4.75M9 11.25a1.5 1.5 0 0 1-3 0V9.5a1.5 1.5 0 0 1 3 0v1.75M18 11.25v4.25a6.5 6.5 0 0 1-13 0v-4.25"/></svg>`,
+            sut: `<svg class="hud-icon" viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>`,
+            cqb: `<svg class="hud-icon" viewBox="0 0 24 24"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>`,
+            manpower: `<svg class="hud-icon" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>`,
+            door: `<svg class="hud-icon" viewBox="0 0 24 24"><path d="M3 21h18M6 21V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v17M14 12h.01"/></svg>`,
+            user: `<svg class="hud-icon" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`
+        };
+
+        /**
+         * State & Config
+         */
+        const state = {
+            menuOpen: false,
+            hudVisible: true,
+            currentMenuId: 'main',
+            menuStack: [],
+            selectedSignal: 'NONE',
+            lastCommand: null,
+            bgIndex: 0,
+            lastF4Time: 0
+        };
+
+        const BACKGROUND_THEMES = [
+            '#0d1117', // Dark slate default
+            'linear-gradient(135deg, #1a2332 0%, #090d14 100%)', // Military bunker shadow
+            'linear-gradient(135deg, #0f1c15 0%, #050a07 100%)', // Tactical night-vision tint
+            'linear-gradient(135deg, #241c14 0%, #0c0906 100%)'  // Desert tactical tint
+        ];
+
+        /**
+         * EXACT MENU HIERARCHY (unchanged).
+         * tactile_members is now built from the live room roster (see buildMemberMenu);
+         * tactile actions are sent to the selected participant over the network.
+         */
+        const MENU_DATA = {
+            main: {
+                title: 'MAIN MENU',
+                radius: 165,
+                items: [
+                    { label: 'PATROL', icon: SVG_ICONS.patrol, target: 'patrol' },
+                    { label: 'TACTILE', icon: SVG_ICONS.tactile, target: 'tactile_members' },
+                    { label: 'SUT', icon: SVG_ICONS.sut, target: 'sut' },
+                    { label: 'CQB', icon: SVG_ICONS.cqb, target: 'cqb' },
+                    { label: 'MANPOWER', icon: SVG_ICONS.manpower, target: 'manpower' },
+                ]
+            },
+            tactile_members: {
+                title: 'TACTILE — SELECT TEAM MEMBER',
+                radius: 175,
+                items: [] // dynamic
+            },
+            tactile_actions: {
+                title: 'TACTILE',
+                radius: 155,
+                items: [
+                    { label: 'SQUEEZE', icon: SVG_ICONS.tactile, action: 'SQUEEZE', tactile: true },
+                    { label: 'HARD SQUEEZE', icon: SVG_ICONS.tactile, action: 'HARD SQUEEZE', tactile: true },
+                    { label: 'TAP', icon: SVG_ICONS.tactile, action: 'TAP', tactile: true }
+                ]
+            },
+            manpower: {
+                title: 'MANPOWER',
+                radius: 165,
+                items: [
+                    { label: '1', action: 'NEED 1' },
+                    { label: '2', action: 'NEED 2' },
+                    { label: '3', action: 'NEED 3' },
+                    { label: '4', action: 'NEED 4' },
+                    { label: '5', action: 'NEED 5' },
+                    { label: 'CONTROLLER', icon: SVG_ICONS.controller, action: 'NEED CONTROLLER' }
+                ]
+            },
+            cqb: {
+                title: 'CQB',
+                radius: 250,
+                items: [
+                    { label: 'BREACH', icon: SVG_ICONS.door, action: 'CQB: BREACH' },
+                    { label: 'LOCKPICK', action: 'LOCKPICK' },
+                    { label: 'PREPPED', action: 'PREPPED' },
+                    { label: 'FLASHBANG', action: 'FLASHBANG' },
+                    { label: 'WITH ME', action: 'WITH ME' },
+                    { label: 'GET SAFE', action: 'GET SAFE' },
+                    { label: 'REVERSE', action: 'REVERSE' },
+                    { label: 'RETROGRADE', action: 'RETROGRADE' },
+                    { label: 'VENTILATE', action: 'VENTILATE' },
+                    { label: 'LAST ROOM', action: 'LAST ROOM' },
+                    { label: 'DECON', action: 'DECON' }
+                ]
+            },
+            sut: {
+                title: 'SUT',
+                radius: 250,
+                items: [
+                    { label: 'CONSOLIDATE', action: 'CONSOLIDATE' },
+                    { label: 'COME TO ME', action: 'COME TO ME' },
+                    { label: 'DOOR', icon: SVG_ICONS.door, action: 'DOOR' },
+                    { label: 'ENGAGE', action: 'ENGAGE' },
+                    { label: 'FRONT MANEUVER', action: 'FRONT MANEUVER' },
+                    { label: 'FLANK MANEUVER', action: 'FLANK MANEUVER' },
+                    { label: 'BREAK CONTACT', action: 'BREAK CONTACT' },
+                    { label: 'HASTY AMBUSH', action: 'HASTY AMBUSH' },
+                    { label: 'MINE/CLAYMORE/IED', action: 'MINE/CLAYMORE/IED' }
+                ]
+            },
+            patrol: {
+                title: 'PATROL COMMANDS',
+                radius: 140,
+                items: [
+                    { label: 'HALT', action: 'HALT' },
+                    { label: 'UP', action: 'UP' },
+                    { label: 'FILE', action: 'FILE' },
+                    { label: 'ON LINE', action: 'ON LINE' },
+                    { label: 'WEDGE ', action: 'WEDGE' },
+                    { label: 'INCREASE SPACING', action: 'INCREASE SPACING' },
+                    { label: 'DECREASE SPACING', action: 'DECREASE SPACING' },
+                    { label: 'GET LOW', action: 'GET LOW' },
+                    { label: 'LDA/ODA', action: 'LDA/ODA' },
+                    { label: 'VISCON', action: 'VISCON' },
+                ]
+            },
+        };
+
+        // DOM Element Cache
+        const $ = (id) => document.getElementById(id);
+        const radialOverlay = $('radial-overlay');
+        const radialNodesContainer = $('radial-nodes-container');
+        const centerStatusBtn = $('center-status-btn');
+        const centerTopText = $('center-top-text');
+        const centerBottomText = $('center-bottom-text');
+        const centerSubHint = $('center-sub-hint');
+        const notificationBanner = $('notification-banner');
+        const bannerTag = $('banner-tag');
+        const bannerMsg = $('banner-msg');
+        const commsLogBox = $('comms-log-box');
+        const hudRoot = $('hud-root');
+
+        /* ---- Desktop overlay (Electron) integration; no-ops in a normal browser ---- */
+        const OVERLAY = !!window.overlay;
+        let hudInteractive = true;
+        if (OVERLAY) document.body.classList.add('overlay-mode');
+        function setInteractive(on) {
+            if (!OVERLAY) return;
+            hudInteractive = on;
+            document.body.classList.toggle('hud-collapsed', !on);
+            window.overlay.setInteractive(on);
+        }
+
+        /* =====================================================================
+         *  NETWORK LAYER
+         * ===================================================================== */
+        const WS_URL = 'wss://flowtastic-server.onrender.com';
+        const ROOM_RE = /^[A-Z0-9_-]{1,32}$/;
+
+        function randomToken() {
+            const a = new Uint8Array(16);
+            (window.crypto || window.msCrypto).getRandomValues(a);
+            return Array.from(a, (b) => b.toString(16).padStart(2, '0')).join('');
+        }
+
+        function getToken() {
+            // per-tab identity: lets a reconnecting tab reclaim its slot, while two tabs are two users
+            try {
+                let t = sessionStorage.getItem('rc_token');
+                if (!t) { t = randomToken(); sessionStorage.setItem('rc_token', t); }
+                return t;
+            } catch (e) { return randomToken(); }
+        }
+
+        const net = {
+            ws: null,
+            status: 'idle',          // idle | connecting | online | reconnecting | offline
+            token: getToken(),
+            desired: null,           // {room,name} we want to be in (drives auto-rejoin)
+            pending: false,          // a join request is in flight from the modal
+            you: null,               // {id,name} once joined
+            room: null,
+            users: [],               // [{id,name,selected}]
+            selectedId: null,
+            retries: 0,
+            retryTimer: null,
+            hbTimer: null,
+            lastSeen: 0,
+            lossNotified: false,
+            flashId: null
+        };
+
+        function wsSend(msg) {
+            if (net.ws && net.ws.readyState === 1) { net.ws.send(JSON.stringify(msg)); return true; }
+            return false;
+        }
+
+        function connect() {
+            if (net.ws && (net.ws.readyState === 0 || net.ws.readyState === 1)) return;
+            setStatus(net.you ? 'reconnecting' : 'connecting');
+            let ws;
+            try { ws = new WebSocket(WS_URL); } catch (e) { onDisconnected(); return; }
+            net.ws = ws;
+
+            ws.onopen = () => {
+                net.lastSeen = Date.now();
+                startHeartbeat();
+                if (net.desired) {
+                    wsSend({ t: 'join', token: net.token, room: net.desired.room, name: net.desired.name });
+                } else {
+                    setStatus('idle');
+                }
+            };
+            ws.onmessage = (e) => {
+                net.lastSeen = Date.now();
+                let m;
+                try { m = JSON.parse(e.data); } catch (err) { return; }
+                handleServerMessage(m);
+            };
+            ws.onclose = () => { if (net.ws === ws) onDisconnected(); };
+            ws.onerror = () => {};
+        }
+
+        function joinNow() {
+            if (net.ws && net.ws.readyState === 1) {
+                wsSend({ t: 'join', token: net.token, room: net.desired.room, name: net.desired.name });
+            } else {
+                connect();
+            }
+        }
+
+        function onDisconnected() {
+            net.ws = null;
+            stopHeartbeat();
+            if (net.pending && !net.you) {
+                // never got in: report, don't retry forever behind the modal
+                net.pending = false;
+                net.desired = null;
+                resetJoinButton();
+                setJoinError('CANNOT REACH SERVER');
+                setStatus('offline');
+                return;
+            }
+            if (net.desired && net.you) {
+                setStatus('reconnecting');
+                if (!net.lossNotified) {
+                    net.lossNotified = true;
+                    audio.error();
+                    triggerNotification('CONNECTION LOST', 'RECONNECTING…');
+                }
+                scheduleReconnect();
+            } else {
+                setStatus(net.you ? 'offline' : 'idle');
+            }
+        }
+
+        function scheduleReconnect() {
+            if (net.retryTimer) return;
+            const delay = Math.min(10000, 1000 * Math.pow(2, net.retries)) + Math.random() * 400;
+            net.retries++;
+            net.retryTimer = setTimeout(() => { net.retryTimer = null; connect(); }, delay);
+        }
+
+        function startHeartbeat() {
+            stopHeartbeat();
+            net.hbTimer = setInterval(() => {
+                if (Date.now() - net.lastSeen > 35000) {
+                    // half-open socket (sleep / wifi drop): force a reconnect
+                    const ws = net.ws;
+                    if (ws) { ws.onclose = null; try { ws.close(); } catch (e) {} }
+                    onDisconnected();
+                    return;
+                }
+                wsSend({ t: 'ping' });
+            }, 10000);
+        }
+        function stopHeartbeat() { if (net.hbTimer) { clearInterval(net.hbTimer); net.hbTimer = null; } }
+
+        // reconnect right away when the network comes back
+        window.addEventListener('online', () => {
+            if (net.desired && net.you && !net.ws) {
+                if (net.retryTimer) { clearTimeout(net.retryTimer); net.retryTimer = null; }
+                net.retries = 0;
+                connect();
+            }
+        });
+
+        function handleServerMessage(m) {
+            switch (m.t) {
+                case 'joined': {
+                    const wasReconnect = net.lossNotified;
+                    net.pending = false;
+                    net.retries = 0;
+                    net.lossNotified = false;
+                    net.you = m.you;
+                    net.room = m.room;
+                    net.desired = { room: m.room, name: m.you.name };
+                    net.users = m.users;
+                    syncSelectionFromRoster();
+                    setStatus('online');
+                    showModal(false);
+                    resetJoinButton();
+                    audio.ack();
+                    if (wasReconnect) triggerNotification('RECONNECTED', 'BACK IN ROOM ' + m.room);
+                    else triggerNotification('JOINED ROOM', m.room);
+                    if (m.renamed) addLog('NAME TAKEN', 'JOINED AS ' + m.you.name);
+                    addLog('ROSTER', m.users.length + ' OPERATOR(S) IN ROOM');
+                    refreshRoster(null);
+                    break;
+                }
+                case 'users': {
+                    const prev = net.users;
+                    net.users = m.users;
+                    syncSelectionFromRoster();
+                    refreshRoster(prev);
+                    break;
+                }
+                case 'interaction':
+                    onIncomingInteraction(m);
+                    break;
+                case 'ack':
+                    audio.ack();
+                    triggerNotification('COMMAND DELIVERED', m.action + ' → ' + m.to.name);
+                    break;
+                case 'renamed':
+                    net.you = m.you;
+                    if (net.desired) net.desired.name = m.you.name;
+                    updatePanel();
+                    triggerNotification('CALLSIGN UPDATED', m.you.name + (m.renamed ? ' (NAME TAKEN)' : ''));
+                    break;
+                case 'left':
+                    break;
+                case 'error':
+                    onServerError(m);
+                    break;
+                case 'pong':
+                default:
+                    break;
+            }
+        }
+
+        function onServerError(m) {
+            audio.error();
+            if (m.code === 'NAME_INVALID' || m.code === 'ROOM_INVALID' || m.code === 'ROOM_FULL' || m.code === 'TOKEN_INVALID') {
+                if (net.pending || !net.you) {
+                    net.pending = false;
+                    net.desired = net.you ? net.desired : null;
+                    resetJoinButton();
+                    setJoinError(String(m.msg || m.code).toUpperCase());
+                    return;
+                }
+                if (net.you && !net.pending && m.code === 'NAME_INVALID') {
+                    triggerNotification('RENAME FAILED', String(m.msg).toUpperCase());
+                    return;
+                }
+            }
+            if (m.code === 'NOT_IN_ROOM' && net.desired && net.you) {
+                // server forgot us (e.g. it restarted): rejoin transparently
+                joinNow();
+                return;
+            }
+            triggerNotification(
+                m.code === 'TARGET_GONE' ? 'TARGET LOST' : (m.code === 'RATE_LIMIT' ? 'SLOW DOWN' : 'ERROR'),
+                String(m.msg || m.code).toUpperCase()
+            );
+        }
+
+        function syncSelectionFromRoster() {
+            const me = net.you && net.users.find((u) => u.id === net.you.id);
+            net.selectedId = me ? me.selected : null;
+        }
+
+        function selectedUser() {
+            return net.selectedId ? net.users.find((u) => u.id === net.selectedId) || null : null;
+        }
+
+        /* ---- actions the UI can trigger ---- */
+        function selectUser(id) {
+            if (!net.you || net.status !== 'online') return;
+            net.selectedId = id;          // optimistic; the server roster is authoritative
+            updatePanel();
+            wsSend({ t: 'select', target: id });
+        }
+
+        function sendInteract(action) {
+            if (!net.you || net.status !== 'online') {
+                audio.error();
+                triggerNotification('NOT CONNECTED', net.you ? 'WAITING FOR CONNECTION' : 'JOIN A ROOM FIRST');
+                return;
+            }
+            const target = selectedUser();
+            if (!target) {
+                audio.error();
+                triggerNotification('NO TARGET', 'SELECT A USER FIRST');
+                return;
+            }
+            wsSend({ t: 'interact', target: target.id, action });
+        }
+
+        function onIncomingInteraction(m) {
+            const verbs = { 'SQUEEZE': 'SQUEEZED YOU', 'HARD SQUEEZE': 'HARD-SQUEEZED YOU', 'TAP': 'TAPPED YOU' };
+            const cls = m.action === 'TAP' ? 'hit-tap' : (m.action === 'HARD SQUEEZE' ? 'hit-hard' : 'hit-squeeze');
+            const flash = $('hit-flash');
+            flash.className = '';
+            void flash.offsetWidth; // restart the CSS animation
+            flash.className = cls;
+            if (m.action === 'TAP') audio.tap();
+            else if (m.action === 'HARD SQUEEZE') audio.hardSqueeze();
+            else audio.squeeze();
+            try { if (navigator.vibrate) navigator.vibrate(m.action === 'TAP' ? 40 : (m.action === 'HARD SQUEEZE' ? [120, 60, 200] : 150)); } catch (e) {}
+            triggerNotification('INCOMING — ' + m.action, m.from.name + ' ' + (verbs[m.action] || m.action));
+            net.flashId = m.from.id;
+            const row = userListEl.querySelector('[data-id="' + m.from.id + '"]');
+            if (row) { row.classList.remove('flash'); void row.offsetWidth; row.classList.add('flash'); }
+        }
+
+        /* ---- session management ---- */
+        function leaveRoom() {
+            wsSend({ t: 'leave' });
+            if (net.retryTimer) { clearTimeout(net.retryTimer); net.retryTimer = null; }
+            const prev = net.desired || { name: $('my-name').textContent, room: net.room };
+            net.desired = null;
+            net.pending = false;
+            net.you = null;
+            net.room = null;
+            net.users = [];
+            net.selectedId = null;
+            net.lossNotified = false;
+            net.retries = 0;
+            setStatus(net.ws && net.ws.readyState === 1 ? 'idle' : 'idle');
+            closeRenameRow();
+            updatePanel();
+            if (state.menuOpen) toggleRadialMenu(false);
+            addLog('SESSION', 'LEFT ROOM');
+            if (prev && prev.name) $('join-name').value = prev.name;
+            if (prev && prev.room) $('join-room').value = prev.room;
+            showModal(true);
+        }
+
+        function submitRename() {
+            const name = $('rename-input').value.replace(/\s+/g, ' ').trim().slice(0, 20);
+            if (!name) return;
+            if (net.status !== 'online') { triggerNotification('NOT CONNECTED', 'TRY AGAIN WHEN ONLINE'); return; }
+            saveName(name);
+            wsSend({ t: 'rename', name });
+            closeRenameRow();
+        }
+
+        function saveName(n) { try { localStorage.setItem('rc_name', n); } catch (e) {} }
+        function loadName() { try { return localStorage.getItem('rc_name') || ''; } catch (e) { return ''; } }
+
+        /* ---- join modal ---- */
+        const joinModal = $('join-modal');
+        const joinNameInput = $('join-name');
+        const joinRoomInput = $('join-room');
+        const joinBtn = $('btn-join');
+
+        function showModal(show) {
+            joinModal.style.display = show ? 'flex' : 'none';
+            if (OVERLAY) { if (show) setInteractive(true); else if (!state.menuOpen) setInteractive(false); }
+            if (show) {
+                setJoinError('');
+                resetJoinButton();
+                setTimeout(() => (joinNameInput.value ? joinRoomInput : joinNameInput).focus(), 30);
+            } else {
+                document.activeElement && document.activeElement.blur && document.activeElement.blur();
+            }
+        }
+        function modalVisible() { return joinModal.style.display !== 'none'; }
+        function setJoinError(t) { $('join-error').textContent = t || ''; }
+        function resetJoinButton() { joinBtn.disabled = false; joinBtn.textContent = 'JOIN ROOM'; }
+
+        function newRoomId() {
+            const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+            const a = new Uint8Array(6);
+            crypto.getRandomValues(a);
+            return Array.from(a, (b) => alphabet[b % alphabet.length]).join('');
+        }
+
+        function submitJoin() {
+            const name = joinNameInput.value.replace(/\s+/g, ' ').trim().slice(0, 20);
+            const room = joinRoomInput.value.trim().toUpperCase();
+            if (!name) return setJoinError('ENTER A DISPLAY NAME');
+            if (!ROOM_RE.test(room)) return setJoinError('ROOM ID: 1-32 LETTERS, NUMBERS, - OR _');
+            setJoinError('');
+            saveName(name);
+            joinBtn.disabled = true;
+            joinBtn.textContent = 'CONNECTING…';
+            net.desired = { room, name };
+            net.pending = true;
+            joinNow();
+        }
+
+        /* ---- panel rendering ---- */
+        const userListEl = $('user-list');
+
+        function setStatus(s) {
+            net.status = s;
+            const dot = $('conn-dot'), txt = $('conn-text');
+            const map = {
+                online:       ['#22c55e', 'CONNECTED'],
+                connecting:   ['#f59e0b', 'CONNECTING…'],
+                reconnecting: ['#f59e0b', 'RECONNECTING…'],
+                offline:      ['#ef4444', 'OFFLINE'],
+                idle:         ['#64748b', 'NOT IN ROOM']
+            };
+            const [color, label] = map[s] || map.idle;
+            dot.style.background = color;
+            txt.textContent = label;
+            $('room-panel').classList.toggle('is-stale', s === 'reconnecting' || s === 'offline');
+        }
+
+        function updatePanel() {
+            const inRoom = !!net.you;
+            $('room-info').classList.toggle('hidden', !inRoom);
+            $('roster-block').classList.toggle('hidden', !inRoom);
+            $('room-buttons').classList.toggle('hidden', !inRoom);
+            $('join-open-block').classList.toggle('hidden', inRoom);
+            if (!inRoom) {
+                $('quick-actions').classList.add('hidden');
+                userListEl.textContent = '';
+                return;
+            }
+            $('room-name').textContent = net.room;
+            $('my-name').textContent = net.you.name;
+            $('user-count').textContent = String(net.users.length);
+
+            const targetedBy = {};
+            net.users.forEach((u) => {
+                if (u.selected) (targetedBy[u.selected] = targetedBy[u.selected] || []).push(u.name);
+            });
+
+            userListEl.textContent = '';
+            net.users.forEach((u) => {
+                const isMe = u.id === net.you.id;
+                const row = document.createElement('button');
+                row.type = 'button';
+                row.dataset.id = u.id;
+                row.className = 'user-row' +
+                    (isMe ? ' is-me' : '') +
+                    (u.id === net.selectedId ? ' is-target' : '') +
+                    (targetedBy[u.id] ? ' is-targeted' : '');
+
+                const top = document.createElement('span');
+                top.className = 'flex items-center gap-1.5 w-full';
+                const marker = document.createElement('span');
+                marker.textContent = u.id === net.selectedId ? '▶' : '•';
+                marker.className = u.id === net.selectedId ? 'text-blue-400' : 'text-slate-500';
+                const nm = document.createElement('span');
+                nm.className = 'truncate flex-1';
+                nm.textContent = u.name;
+                top.appendChild(marker);
+                top.appendChild(nm);
+                if (isMe) {
+                    const you = document.createElement('span');
+                    you.className = 'text-[9px] text-slate-400 font-normal';
+                    you.textContent = '(YOU)';
+                    top.appendChild(you);
+                } else if (u.id === net.selectedId) {
+                    const tg = document.createElement('span');
+                    tg.className = 'text-[9px] text-blue-300';
+                    tg.textContent = 'TARGET';
+                    top.appendChild(tg);
+                }
+                row.appendChild(top);
+
+                if (targetedBy[u.id]) {
+                    const sub = document.createElement('span');
+                    sub.className = 'sub truncate';
+                    sub.textContent = 'TARGETED BY: ' + targetedBy[u.id].join(', ');
+                    row.appendChild(sub);
+                }
+                if (!isMe) {
+                    row.addEventListener('click', () => {
+                        audio.select();
+                        selectUser(u.id === net.selectedId ? null : u.id);
+                    });
+                }
+                if (u.id === net.flashId) row.classList.add('flash');
+                userListEl.appendChild(row);
+            });
+
+            const sel = selectedUser();
+            $('quick-actions').classList.toggle('hidden', !sel);
+            if (sel) $('target-name').textContent = sel.name;
+        }
+
+        /** Re-render everything that depends on the roster; log joins / leaves / renames. */
+        function refreshRoster(prev) {
+            if (prev && net.you) {
+                const prevMap = new Map(prev.map((u) => [u.id, u]));
+                const curMap = new Map(net.users.map((u) => [u.id, u]));
+                net.users.forEach((u) => {
+                    if (u.id === net.you.id) return;
+                    const p = prevMap.get(u.id);
+                    if (!p) addLog('USER JOINED', u.name);
+                    else if (p.name !== u.name) addLog('USER RENAMED', p.name + ' → ' + u.name);
+                });
+                prev.forEach((u) => {
+                    if (u.id !== net.you.id && !curMap.has(u.id)) {
+                        addLog('USER LEFT', u.name);
+                        if (u.id === net.flashId) net.flashId = null;
+                    }
+                });
+            }
+            // If the selected user left, make that visible instead of silently dropping it
+            updatePanel();
+            if (state.menuOpen && (state.currentMenuId === 'tactile_members' || state.currentMenuId === 'tactile_actions')) {
+                renderRadialMenu(state.currentMenuId);
+            }
+        }
+
+        function openRenameRow() {
+            $('rename-row').classList.remove('hidden');
+            const i = $('rename-input');
+            i.value = net.you ? net.you.name : '';
+            i.focus();
+            i.select();
+        }
+        function closeRenameRow() { $('rename-row').classList.add('hidden'); $('rename-input').blur(); }
+
+        function copyInviteLink() {
+            if (!net.room) return;
+            const link = location.origin + location.pathname + '?room=' + encodeURIComponent(net.room);
+            const done = () => triggerNotification('INVITE LINK COPIED', net.room);
+            const fallback = () => {
+                const ta = document.createElement('textarea');
+                ta.value = link;
+                ta.style.position = 'fixed';
+                ta.style.opacity = '0';
+                document.body.appendChild(ta);
+                ta.select();
+                try { document.execCommand('copy'); done(); } catch (e) { addLog('INVITE LINK', link); }
+                document.body.removeChild(ta);
+            };
+            if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(link).then(done, fallback);
+            else fallback();
+        }
+
+        /* =====================================================================
+         *  RADIAL MENU
+         * ===================================================================== */
+
+        /** The TACTILE member menu is the live roster (everyone but you). */
+        function buildMemberMenu() {
+            const base = MENU_DATA.tactile_members;
+            const myId = net.you && net.you.id;
+            const others = net.users.filter((u) => u.id !== myId);
+            let items;
+            if (!net.you) {
+                items = [{ label: 'JOIN A ROOM FIRST', disabled: true }];
+            } else if (!others.length) {
+                items = [{ label: 'NO OTHER USERS', disabled: true }];
+            } else {
+                items = others.map((u) => ({
+                    label: u.name,
+                    icon: SVG_ICONS.user,
+                    target: 'tactile_actions',
+                    memberId: u.id,
+                    selected: u.id === net.selectedId
+                }));
+            }
+            const n = items.length;
+            const big = n > 6;
+            return {
+                title: base.title,
+                radius: big ? Math.min(Math.max(175, n * 28), Math.max(140, Math.floor(window.innerHeight / 2) - 70)) : base.radius,
+                stretch: big ? 1.35 : 1,
+                items
+            };
+        }
+
+        function getMenuConfig(menuId) {
+            if (menuId === 'tactile_members') return buildMemberMenu();
+            if (menuId === 'tactile_actions') {
+                const sel = selectedUser();
+                return Object.assign({}, MENU_DATA.tactile_actions, { title: 'TACTILE — ' + (sel ? sel.name : 'NO TARGET') });
+            }
+            return MENU_DATA[menuId];
+        }
+
+        /**
+         * Render Radial Options
+         */
+        function renderRadialMenu(menuId) {
+            const config = getMenuConfig(menuId);
+            if (!config) return;
+
+            state.currentMenuId = menuId;
+
+            // Center Status Text
+            if (state.menuStack.length > 0) {
+                centerTopText.textContent = config.title;
+                centerSubHint.textContent = '[CLICK TO BACK]';
+            } else {
+                centerTopText.textContent = 'ECHO SIGNAL'; // <-- Change label from ECHO SIGNAL
+                centerSubHint.textContent = '[CLICK TO REPEAT]';
+            }
+            centerBottomText.textContent = state.selectedSignal;
+
+            radialNodesContainer.innerHTML = '';
+
+            const items = config.items;
+            const count = items.length;
+            const radius = config.radius || 165;
+            const stretch = config.stretch || 1;
+
+            items.forEach((item, idx) => {
+                const angleDeg = -90 + (idx * (360 / count));
+                const angleRad = (angleDeg * Math.PI) / 180;
+
+                const x = Math.round(Math.cos(angleRad) * radius * stretch);
+                const y = Math.round(Math.sin(angleRad) * radius);
+
+                const wrapper = document.createElement('div');
+                wrapper.className = 'hud-btn-wrapper';
+                wrapper.style.left = `calc(50% + ${x}px)`;
+                wrapper.style.top = `calc(50% + ${y}px)`;
+
+                if (item.icon) wrapper.insertAdjacentHTML('beforeend', item.icon); // trusted static SVG
+
+                const btn = document.createElement('button');
+                btn.className = 'hud-cmd-btn' + (item.disabled ? ' is-disabled' : '') + (item.selected ? ' is-selected' : '');
+                const label = document.createElement('span');
+                label.className = 'truncate max-w-full';
+                label.textContent = item.label; // textContent: user names are untrusted
+                btn.appendChild(label);
+                wrapper.appendChild(btn);
+
+            btn.addEventListener('mouseenter', () => { if (!item.disabled) audio.hover(); });
+            btn.addEventListener('click', (e) => {
+                 e.stopPropagation();
+                 if (item.disabled) { audio.error(); return; }
+                 audio.select();
+
+                 if (item.memberId) {
+                     selectUser(item.memberId);
+                 }
+
+                 // Check if this button is designated to repeat the last command
+                 if (item.repeatLast) {
+                     if (!state.lastCommand) {
+                         triggerNotification('ECHO SIGNAL', 'NO PREVIOUS COMMAND');
+                         toggleRadialMenu(false);
+                         return;
+                     }
+                     // Re-trigger the saved last command/action
+                     state.lastCommand();
+                     toggleRadialMenu(false);
+                     return;
+                 }
+
+                 if (item.target) {
+                     state.menuStack.push(state.currentMenuId);
+                     renderRadialMenu(item.target);
+                 } else if (item.signal) {
+                        state.selectedSignal = item.signal;
+                        state.lastCommand = () => {
+                            state.selectedSignal = item.signal;
+                            triggerNotification('SIGNAL BROADCAST (REPEAT)', item.signal);
+                        };
+                        triggerNotification('SIGNAL BROADCAST', item.signal);
+                        toggleRadialMenu(false);
+                    } else if (item.tactile) {
+                        state.selectedSignal = item.action; // <-- Update selectedSignal
+                        state.lastCommand = () => {
+                            state.selectedSignal = item.action;
+                            sendInteract(item.action);
+                        };
+                        sendInteract(item.action);
+                        toggleRadialMenu(false);
+                    } else if (item.action) {
+                        state.selectedSignal = item.action; // <-- Update selectedSignal
+                        state.lastCommand = () => {
+                            state.selectedSignal = item.action;
+                            triggerNotification('COMMAND (REPEAT)', item.action);
+                        };
+                        triggerNotification('COMMAND', item.action);
+                        toggleRadialMenu(false);
+                    }
+             });
+
+                radialNodesContainer.appendChild(wrapper);
+            });
+        }
+
+        function toggleRadialMenu(force) {
+            state.menuOpen = force !== undefined ? force : !state.menuOpen;
+
+            if (state.menuOpen) {
+                audio.select();
+                radialOverlay.classList.remove('opacity-0', 'pointer-events-none');
+                radialOverlay.classList.add('opacity-100');
+                state.menuStack = [];
+                renderRadialMenu('main');
+            } else {
+                audio.back();
+                radialOverlay.classList.remove('opacity-100');
+                radialOverlay.classList.add('opacity-0', 'pointer-events-none');
+                if (OVERLAY && !modalVisible()) setInteractive(false);
+            }
+        }
+
+        function handleCenterBack() {
+            if (state.menuStack.length > 0) {
+                audio.back();
+                const prev = state.menuStack.pop();
+                renderRadialMenu(prev);
+            } else {
+                // We are on the main menu: clicking the center button triggers repeat last!
+                if (!state.lastCommand) {
+                    audio.error();
+                    triggerNotification('ECHO SIGNAL', 'NO PREVIOUS COMMAND');
+                    toggleRadialMenu(false);
+                    return;
+                }
+                audio.select();
+                state.lastCommand();
+                toggleRadialMenu(false);
+            }
+        }
+
+        function triggerNotification(tag, message) {
+            bannerTag.textContent = tag;
+            bannerMsg.textContent = message;
+
+            addLog(tag, message);
+
+            notificationBanner.classList.remove('opacity-0', '-translate-y-4');
+            notificationBanner.classList.add('opacity-100', 'translate-y-0');
+
+            if (window.notifTimer) clearTimeout(window.notifTimer);
+            window.notifTimer = setTimeout(() => {
+                notificationBanner.classList.remove('opacity-100', 'translate-y-0');
+                notificationBanner.classList.add('opacity-0', '-translate-y-4');
+            }, 3000);
+        }
+
+        function addLog(tag, text) {
+            const time = new Date().toTimeString().split(' ')[0];
+            const div = document.createElement('div');
+            div.className = 'border-l-2 border-blue-500 pl-1.5 py-0.5 bg-black/40';
+
+            const head = document.createElement('div');
+            head.className = 'flex justify-between text-[9px] text-slate-400 font-bold uppercase';
+            const t1 = document.createElement('span'); t1.textContent = tag;
+            const t2 = document.createElement('span'); t2.textContent = time;
+            head.appendChild(t1); head.appendChild(t2);
+
+            const body = document.createElement('div');
+            body.className = 'text-white font-bold uppercase truncate';
+            body.textContent = text;
+
+            div.appendChild(head);
+            div.appendChild(body);
+            commsLogBox.appendChild(div);
+            commsLogBox.scrollTop = commsLogBox.scrollHeight;
+        }
+
+        /**
+         * Global Keyboard Event Listeners
+         */
+        window.addEventListener('keydown', (e) => {
+            const typing = e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA');
+            if (typing) return;          // let people type names / room IDs (incl. backtick-free text)
+            if (modalVisible()) return;  // join screen has focus
+
+            if (e.key === '`' || e.code === 'Backquote') {
+                e.preventDefault();
+                toggleRadialMenu();
+            } else if (e.key === 'Escape') {
+                if (state.menuOpen) {
+                    e.preventDefault();
+                    handleCenterBack();
+                }
+            } else if (e.key === 'F4' || e.code === 'F4') {
+                e.preventDefault();
+                const now = Date.now();
+                if (now - state.lastF4Time < 400) {
+                    state.hudVisible = !state.hudVisible;
+                    hudRoot.style.display = state.hudVisible ? 'flex' : 'none';
+                    state.lastF4Time = 0;
+                } else {
+                    state.lastF4Time = now;
+                }
+            }
+        });
+
+        // Event Attachments
+        centerStatusBtn.addEventListener('click', handleCenterBack);
+        centerStatusBtn.addEventListener('mouseenter', () => audio.hover());
+
+        $('btn-toggle-radial').addEventListener('click', () => toggleRadialMenu());
+        
+        $('btn-test-signal').addEventListener('click', () => {
+            const testSignals = ['WHISTLE SHORT', 'CHIRP', 'SQUEAK', 'BREACH', 'CONSOLIDATE'];
+            const chosen = testSignals[Math.floor(Math.random() * testSignals.length)];
+            state.selectedSignal = chosen;
+            triggerNotification('TEST SIGNAL', chosen);
+        });
+
+        $('btn-toggle-audio').addEventListener('click', () => {
+            audio.enabled = !audio.enabled;
+            const tag = $('audio-status-tag');
+            tag.textContent = audio.enabled ? 'ON' : 'MUTED';
+            tag.className = audio.enabled ? 'text-blue-400 font-bold' : 'text-slate-500 font-bold';
+        });
+
+        $('btn-switch-bg').addEventListener('click', () => {
+            state.bgIndex = (state.bgIndex + 1) % BACKGROUND_THEMES.length;
+            $('game-backdrop').style.background = BACKGROUND_THEMES[state.bgIndex];
+        });
+
+        $('btn-clear-log').addEventListener('click', () => {
+            commsLogBox.innerHTML = '<div class="text-slate-500 italic">[LOG CLEARED]</div>';
+        });
+
+        // Multiplayer UI wiring
+        joinBtn.addEventListener('click', submitJoin);
+        $('btn-new-room').addEventListener('click', () => { joinRoomInput.value = newRoomId(); setJoinError(''); });
+        $('btn-skip-join').addEventListener('click', () => { showModal(false); });
+        $('btn-open-join').addEventListener('click', () => {
+            if (state.menuOpen) toggleRadialMenu(false);
+            showModal(true);
+        });
+        [joinNameInput, joinRoomInput].forEach((el) =>
+            el.addEventListener('keydown', (e) => { if (e.key === 'Enter') submitJoin(); }));
+        $('btn-leave').addEventListener('click', leaveRoom);
+        $('btn-rename').addEventListener('click', () => {
+            $('rename-row').classList.contains('hidden') ? openRenameRow() : closeRenameRow();
+        });
+        $('btn-rename-ok').addEventListener('click', submitRename);
+        $('rename-input').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') submitRename();
+            else if (e.key === 'Escape') closeRenameRow();
+        });
+        $('btn-copy-link').addEventListener('click', copyInviteLink);
+        document.querySelectorAll('#quick-actions [data-action]').forEach((b) =>
+            b.addEventListener('click', () => sendInteract(b.dataset.action)));
+
+        // Desktop overlay wiring
+        if (OVERLAY) {
+            window.overlay.onToggle(() => {
+                if (modalVisible()) return;                              // typing name / room
+                if (!hudInteractive) { setInteractive(true); toggleRadialMenu(true); }
+                else if (state.menuOpen) toggleRadialMenu(false);       // closing collapses the HUD
+                else setInteractive(false);
+            });
+            $('btn-quit-overlay').addEventListener('click', () => window.overlay.quit());
+        }
+
+        // Initialize HUD log + join screen
+        window.onload = function() {
+            addLog('SYSTEM', 'Tactical Overlay Initialized');
+            joinNameInput.value = loadName();
+            const roomParam = new URLSearchParams(location.search).get('room');
+            if (roomParam) joinRoomInput.value = roomParam.trim().toUpperCase().slice(0, 32);
+            setStatus('idle');
+            updatePanel();
+            showModal(true);
+        };
+    </script>
+</body>
+</html>

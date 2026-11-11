@@ -1,14 +1,13 @@
 {
-  "name": "tactical-comms-rooms",
+  "name": "flowtastic-overlay",
   "version": "1.0.0",
-  "description": "Room-based multiplayer backend + HUD client for the tactical radial overlay",
-  "main": "server.js",
+  "main": "main.js",
   "scripts": {
-    "start": "node server.js",
-    "test": "node test.js",
-    "overlay": "electron main.js"
+    "start": "electron .",
+    "build": "electron-builder --win --x64"
   },
-  "dependencies": {
-    "ws": "^8.18.0"
+  "devDependencies": {
+    "electron": "^28.0.0",
+    "electron-builder": "^24.13.3"
   }
 }
