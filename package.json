@@ -1,0 +1,14 @@
+{
+  "name": "tactical-comms-rooms",
+  "version": "1.0.0",
+  "description": "Room-based multiplayer backend + HUD client for the tactical radial overlay",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node test.js",
+    "overlay": "electron main.js"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}
